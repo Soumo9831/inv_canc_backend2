@@ -7,7 +7,7 @@ const {
 const { v4: uuidv4 } = require("uuid");
 const { dynamoDB } = require("../config/dynamo"); // Ensure this matches your config export
 
-const TABLE_NAME = "Invoice_app_users"; // Ensure this matches your AWS Table Name
+const TABLE_NAME = "cancellation_app_users"; // Ensure this matches your AWS Table Name
 
 // 1. FIND BY ID (Fast - For Login)
 // Uses Primary Key Lookup

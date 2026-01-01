@@ -1,9 +1,12 @@
 const express = require("express");
 const cors = require("cors");
+
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
+const cancellationRoutes = require("./routes/cancellation.routes");
 
 const app = express();
+
 // CORS FIX
 app.use(
   cors({
@@ -18,5 +21,6 @@ app.use(express.json());
 // Routes
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/cancellation", cancellationRoutes);
 
 module.exports = app;

@@ -1,0 +1,272 @@
+{
+  "success": true,
+  "count": 6,
+  "invoices": [
+    {
+      "version": 1,
+      "totalAmount": 3380000,
+      "lastPaymentAmount": 200000,
+      "gst": { "amount": 2000, "percentage": 1 },
+      "lastPaymentDate": "2025-12-28T15:13:54.498Z",
+      "createdAt": "2025-12-28T15:13:54.498Z",
+      "items": [
+        {
+          "description": "3 bhk 4th floor",
+          "areaSqFt": 850,
+          "hashingCode": "AIRDE111",
+          "projectName": "Uttara",
+          "rate": 3300
+        }
+      ],
+      "advance": 325000,
+      "cancellation_charge": 45000,
+      "net_return": 280000,
+      "already_returned": 100000,
+      "yetTB_returned": 180000,
+      "status": false,
+      "charges": { "parking": 450000, "amenities": 125000, "otherCharges": 0 },
+      "itemsTotal": 2805000,
+      "executiveName": "ARNAB ROY",
+      "isOriginal": false,
+      "company": {
+        "name": "Unique Realcon",
+        "address": "Rajdanga, Kolkata",
+        "phone": "03345025892",
+        "email": "airdegroup@gmail.com"
+      },
+      "subTotal": 3380000,
+      "payment": { "mode": "UPI", "chequeNumber": null, "bankName": null },
+      "_id": "INV-034498-RGZD",
+      "customer": {
+        "name": "ARNAB Roy",
+        "GSTIN": "",
+        "address": "Kankurgachi",
+        "PAN": "ARNAB1234P",
+        "phone": "9831151616"
+      },
+      "remainingAmount": 3057000,
+      "previousInvoiceId": "INV-764854-H8L4"
+    },
+
+    {
+      "version": 1,
+      "totalAmount": 3150000,
+      "gst": { "amount": 0, "percentage": 1 },
+      "createdAt": "2025-12-28T14:26:23.985Z",
+      "items": [
+        {
+          "description": "3 BHK",
+          "areaSqFt": 900,
+          "hashingCode": "AIRDE112",
+          "projectName": "Uttara Housing",
+          "rate": 3500
+        }
+      ],
+      "advance": 0,
+      "cancellation_charge": 0,
+      "net_return": 0,
+      "already_returned": 0,
+      "yetTB_returned": 0,
+      "status": true,
+      "charges": { "parking": 0, "amenities": 0, "otherCharges": 0 },
+      "itemsTotal": 3150000,
+      "executiveName": "ARNAB ROY",
+      "isOriginal": true,
+      "company": {
+        "name": "Unique Realcon",
+        "address": "Kasba, Kolkata",
+        "phone": "03345025892",
+        "email": "airdegroup@gmail.com"
+      },
+      "subTotal": 3150000,
+      "payment": { "mode": "Bank Transfer", "chequeNumber": null, "bankName": null },
+      "_id": "INV-183985-J62J",
+      "customer": {
+        "name": "Demo User",
+        "GSTIN": "",
+        "address": "Kasba",
+        "PAN": "DEMO1234X",
+        "phone": "9876543210"
+      },
+      "remainingAmount": 3150000,
+      "previousInvoiceId": null
+    },
+
+    {
+      "version": 1,
+      "totalAmount": 5750000,
+      "lastPaymentAmount": 100000,
+      "gst": { "amount": 1000, "percentage": 1 },
+      "createdAt": "2025-12-28T14:17:53.215Z",
+      "items": [
+        {
+          "description": "3BHK Premium",
+          "areaSqFt": 1250,
+          "hashingCode": "AIRDE3651",
+          "projectName": "Uttara Housing Complex",
+          "rate": 3800
+        }
+      ],
+      "advance": 600000,
+      "cancellation_charge": 120000,
+      "net_return": 480000,
+      "already_returned": 480000,
+      "yetTB_returned": 0,
+      "status": true,
+      "charges": { "parking": 600000, "amenities": 200000, "otherCharges": 200000 },
+      "itemsTotal": 4750000,
+      "executiveName": "RAJESH KHANNA",
+      "isOriginal": false,
+      "company": {
+        "name": "Unique Realcon",
+        "address": "EM Bypass, Kolkata",
+        "phone": "03345025892",
+        "email": "airdegroup@gmail.com"
+      },
+      "subTotal": 5750000,
+      "payment": { "mode": "Bank Transfer", "chequeNumber": null, "bankName": null },
+      "_id": "INV-673215-JMOC",
+      "customer": {
+        "name": "Prasenjit Debnath",
+        "GSTIN": "",
+        "address": "Haraharitala More",
+        "PAN": "CEZPD8155E",
+        "phone": "8479975595"
+      },
+      "remainingAmount": 5151000,
+      "previousInvoiceId": "INV-501670-I2YC"
+    },
+
+    {
+      "version": 1,
+      "totalAmount": 1307580,
+      "gst": { "amount": 0, "percentage": 18 },
+      "createdAt": "2025-12-28T11:33:35.368Z",
+      "items": [
+        {
+          "description": "2 BHK",
+          "areaSqFt": 555,
+          "hashingCode": "AIRDE200",
+          "projectName": "Uttara",
+          "rate": 2356
+        }
+      ],
+      "advance": 100000,
+      "cancellation_charge": 20000,
+      "net_return": 80000,
+      "already_returned": 30000,
+      "yetTB_returned": 50000,
+      "status": false,
+      "charges": { "parking": 0, "amenities": 0, "otherCharges": 0 },
+      "itemsTotal": 1307580,
+      "executiveName": "SYSTEM",
+      "isOriginal": true,
+      "company": {
+        "name": "Airde Developer",
+        "address": "Salt Lake, Kolkata",
+        "phone": "03345025893",
+        "email": "support@airde.in"
+      },
+      "subTotal": 1307580,
+      "payment": { "mode": "Cash", "chequeNumber": null, "bankName": null },
+      "_id": "INV-815368-B0QK",
+      "customer": {
+        "name": "Rohit Sen",
+        "GSTIN": "",
+        "address": "Salt Lake",
+        "PAN": "ROHIT8899K",
+        "phone": "9001122334"
+      },
+      "remainingAmount": 1227580,
+      "previousInvoiceId": null
+    },
+
+    {
+      "version": 1,
+      "totalAmount": 5550000,
+      "gst": { "amount": 2000, "percentage": 1 },
+      "createdAt": "2025-12-28T11:29:14.808Z",
+      "items": [
+        {
+          "description": "3 BHK Deluxe",
+          "areaSqFt": 1200,
+          "hashingCode": "AIRDE555",
+          "projectName": "Uttara Phase 2",
+          "rate": 4000
+        }
+      ],
+      "advance": 200000,
+      "cancellation_charge": 30000,
+      "net_return": 170000,
+      "already_returned": 50000,
+      "yetTB_returned": 120000,
+      "status": false,
+      "charges": { "parking": 500000, "amenities": 230000, "otherCharges": 20000 },
+      "itemsTotal": 4800000,
+      "executiveName": "ARNAB ROY",
+      "isOriginal": true,
+      "company": {
+        "name": "Unique Realcon",
+        "address": "Garia, Kolkata",
+        "phone": "03345025892",
+        "email": "airdegroup@gmail.com"
+      },
+      "subTotal": 5550000,
+      "payment": { "mode": "Cheque", "chequeNumber": "123456", "bankName": "SBI" },
+      "_id": "INV-554808-R94N",
+      "customer": {
+        "name": "Debashree Das",
+        "GSTIN": "",
+        "address": "Garia",
+        "PAN": "DEBAS4455M",
+        "phone": "9903059144"
+      },
+      "remainingAmount": 5352000,
+      "previousInvoiceId": null
+    },
+
+    {
+      "version": 1,
+      "totalAmount": 4337950,
+      "gst": { "amount": 0, "percentage": 0 },
+      "createdAt": "2025-12-28T11:16:34.531Z",
+      "items": [
+        {
+          "description": "Old customer settlement",
+          "areaSqFt": 983,
+          "hashingCode": "AIRDEOLD",
+          "projectName": "Uttara Old Block",
+          "rate": 3650
+        }
+      ],
+      "advance": 720000,
+      "cancellation_charge": 50000,
+      "net_return": 670000,
+      "already_returned": 200000,
+      "yetTB_returned": 470000,
+      "status": false,
+      "charges": { "parking": 500000, "amenities": 230000, "otherCharges": 20000 },
+      "itemsTotal": 3587950,
+      "executiveName": "SYSTEM",
+      "isOriginal": true,
+      "company": {
+        "name": "Unique Realcon",
+        "address": "Jadavpur, Kolkata",
+        "phone": "03345025892",
+        "email": "airdegroup@gmail.com"
+      },
+      "subTotal": 4337950,
+      "payment": { "mode": "Bank Transfer", "chequeNumber": null, "bankName": null },
+      "_id": "INV-794531-D4W9",
+      "customer": {
+        "name": "Baban Das",
+        "GSTIN": "",
+        "address": "Jadavpur",
+        "PAN": "BABAN7788L",
+        "phone": "9876543210"
+      },
+      "remainingAmount": 3617950,
+      "previousInvoiceId": null
+    }
+  ]
+}
