@@ -4,6 +4,7 @@ const cors = require("cors");
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const cancellationRoutes = require("./routes/cancellation.routes");
+const paymentRoutes = require("./routes/payments.routes"); // 🔥 NEW
 
 const app = express();
 
@@ -22,5 +23,6 @@ app.use(express.json());
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/cancellation", cancellationRoutes);
+app.use("/api/v1/payments", paymentRoutes); // 🔥 NEW
 
 module.exports = app;

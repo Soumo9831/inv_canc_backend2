@@ -1,4 +1,5 @@
 const cancellationRepo = require("../repository/cancellation.repo");
+const paymentsRepo = require("../repository/payments.repo"); // 🔥 NEW
 
 /* ================= EXISTING CODE (UNCHANGED) ================= */
 
@@ -20,6 +21,15 @@ const createCancellationFromInvoice = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Invoice not found",
+      });
+    }
+
+    /* 🔥 PAYMENT ENTRY ON NEW CANCELLATION */
+    if (result.already_returned && result.already_returned > 0) {
+      await paymentsRepo.createPayment({
+        cancellation_id: result._id,
+        amount: result.already_returned,
+        customer: result.customer,
       });
     }
 
@@ -105,6 +115,13 @@ const addRefundAmount = async (req, res) => {
         latestVoucher,
         amountToAdd
       );
+
+    /* 🔥 PAYMENT ENTRY ON NEW VERSION CREATION */
+    await paymentsRepo.createPayment({
+      cancellation_id: newVoucher._id,
+      amount: amountToAdd,
+      customer: newVoucher.customer,
+    });
 
     return res.status(201).json({
       success: true,
@@ -250,44 +267,25 @@ const deleteLatestCancellationByInvoiceId = async (req, res) => {
   }
 };
 
-/* ================= 🔥 NEW FEATURE: GET LATEST FOR ALL INVOICES ================= */
+/* ================= GET LATEST FOR ALL INVOICES ================= */
 
-/**
- * @desc   Get latest (highest version) cancellation voucher for each invoice
- * @route  GET /api/cancellation/latest-all
- * @access Private (JWT required | admin & non-admin)
- */
 const getLatestCancellationsForAllInvoices = async (req, res) => {
   try {
     const cancellations = await cancellationRepo.getAllCancellations();
-
-    if (!cancellations || cancellations.length === 0) {
-      return res.status(200).json({
-        success: true,
-        count: 0,
-        data: [],
-      });
-    }
 
     const latestMap = {};
 
     for (const voucher of cancellations) {
       const invId = voucher.inv_id;
-
-      if (
-        !latestMap[invId] ||
-        voucher.version > latestMap[invId].version
-      ) {
+      if (!latestMap[invId] || voucher.version > latestMap[invId].version) {
         latestMap[invId] = voucher;
       }
     }
 
-    const latestVouchers = Object.values(latestMap);
-
     return res.status(200).json({
       success: true,
-      count: latestVouchers.length,
-      data: latestVouchers,
+      count: Object.keys(latestMap).length,
+      data: Object.values(latestMap),
     });
   } catch (err) {
     console.error("Get Latest Cancellations For All Error:", err.message);
@@ -298,6 +296,51 @@ const getLatestCancellationsForAllInvoices = async (req, res) => {
   }
 };
 
+/* ================= GET BY CANCELLATION ID ================= */
+
+/**
+ * @desc   Get a single cancellation voucher by cancellation ID
+ * @route  GET /api/cancellation/by-id/:cancellationId
+ * @access Private (JWT required | admin & non-admin)
+ */
+const getCancellationById = async (req, res) => {
+  try {
+    const { cancellationId } = req.params;
+
+    if (!cancellationId) {
+      return res.status(400).json({
+        success: false,
+        message: "Cancellation ID is required",
+      });
+    }
+
+    const cancellations = await cancellationRepo.getAllCancellations();
+
+    const voucher = cancellations.find(
+      (item) => item._id === cancellationId
+    );
+
+    if (!voucher) {
+      return res.status(404).json({
+        success: false,
+        message: "Cancellation voucher not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: voucher,
+    });
+  } catch (err) {
+    console.error("Get Cancellation By ID Error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
+
 /* ================= EXPORTS ================= */
 
 module.exports = {
@@ -306,10 +349,8 @@ module.exports = {
   addRefundAmount,
   getCancellationVersionsByInvoiceId,
   getLatestCancellationByInvoiceId,
-
   deleteCancellationById,
   deleteLatestCancellationByInvoiceId,
-
-  // 🔥 NEW EXPORT
   getLatestCancellationsForAllInvoices,
+  getCancellationById,
 };

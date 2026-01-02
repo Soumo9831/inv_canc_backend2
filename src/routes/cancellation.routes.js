@@ -8,7 +8,8 @@ const {
   addRefundAmount,
   getCancellationVersionsByInvoiceId,
   getLatestCancellationByInvoiceId,
-  getLatestCancellationsForAllInvoices, // 🔥 NEW
+  getLatestCancellationsForAllInvoices,
+  getCancellationById,              // 🔥 NEW
   deleteCancellationById,
   deleteLatestCancellationByInvoiceId,
 } = require("../controllers/cancellation.controller");
@@ -58,18 +59,17 @@ router.get(
 );
 
 /**
- * @route   GET /api/cancellation/latest/:invoiceId
- * @desc    Fetch latest (highest version) cancellation voucher of an invoice
+ * @route   GET /api/cancellation/by-id/:cancellationId
+ * @desc    Fetch a single cancellation voucher by cancellation ID
  * @access  Private (Any logged-in user: admin or non-admin)
  */
 router.get(
-  "/latest/:invoiceId",
+  "/by-id/:cancellationId",
   authMiddleware,
-  getLatestCancellationByInvoiceId
+  getCancellationById
 );
 
 /**
- * 🔥 NEW ROUTE
  * @route   GET /api/cancellation/latest-all
  * @desc    Fetch latest cancellation voucher for EACH invoice
  * @access  Private (Any logged-in user: admin or non-admin)
@@ -78,6 +78,17 @@ router.get(
   "/latest-all",
   authMiddleware,
   getLatestCancellationsForAllInvoices
+);
+
+/**
+ * @route   GET /api/cancellation/latest/:invoiceId
+ * @desc    Fetch latest (highest version) cancellation voucher of an invoice
+ * @access  Private (Any logged-in user: admin or non-admin)
+ */
+router.get(
+  "/latest/:invoiceId",
+  authMiddleware,
+  getLatestCancellationByInvoiceId
 );
 
 /**
