@@ -181,7 +181,7 @@ const getLatestCancellationByInvoiceId = async (req, res) => {
   }
 };
 
-/* ================= 🔥 DELETE BY CANCELLATION ID (RESTORED) ================= */
+/* ================= DELETE BY CANCELLATION ID ================= */
 
 const deleteCancellationById = async (req, res) => {
   try {
@@ -217,18 +217,11 @@ const deleteCancellationById = async (req, res) => {
   }
 };
 
-/* ================= 🔥 DELETE LATEST VERSION BY INVOICE ================= */
+/* ================= DELETE LATEST BY INVOICE ================= */
 
 const deleteLatestCancellationByInvoiceId = async (req, res) => {
   try {
     const { invoiceId } = req.params;
-
-    if (!invoiceId) {
-      return res.status(400).json({
-        success: false,
-        message: "Invoice ID is required",
-      });
-    }
 
     const latestVoucher =
       await cancellationRepo.getLatestCancellationByInvoiceId(invoiceId);
@@ -257,6 +250,54 @@ const deleteLatestCancellationByInvoiceId = async (req, res) => {
   }
 };
 
+/* ================= 🔥 NEW FEATURE: GET LATEST FOR ALL INVOICES ================= */
+
+/**
+ * @desc   Get latest (highest version) cancellation voucher for each invoice
+ * @route  GET /api/cancellation/latest-all
+ * @access Private (JWT required | admin & non-admin)
+ */
+const getLatestCancellationsForAllInvoices = async (req, res) => {
+  try {
+    const cancellations = await cancellationRepo.getAllCancellations();
+
+    if (!cancellations || cancellations.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: [],
+      });
+    }
+
+    const latestMap = {};
+
+    for (const voucher of cancellations) {
+      const invId = voucher.inv_id;
+
+      if (
+        !latestMap[invId] ||
+        voucher.version > latestMap[invId].version
+      ) {
+        latestMap[invId] = voucher;
+      }
+    }
+
+    const latestVouchers = Object.values(latestMap);
+
+    return res.status(200).json({
+      success: true,
+      count: latestVouchers.length,
+      data: latestVouchers,
+    });
+  } catch (err) {
+    console.error("Get Latest Cancellations For All Error:", err.message);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
+
 /* ================= EXPORTS ================= */
 
 module.exports = {
@@ -266,7 +307,9 @@ module.exports = {
   getCancellationVersionsByInvoiceId,
   getLatestCancellationByInvoiceId,
 
-  // ✅ BOTH DELETE OPTIONS
   deleteCancellationById,
   deleteLatestCancellationByInvoiceId,
+
+  // 🔥 NEW EXPORT
+  getLatestCancellationsForAllInvoices,
 };

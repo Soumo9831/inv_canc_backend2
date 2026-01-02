@@ -3,7 +3,7 @@ const path = require("path");
 const {
   PutCommand,
   ScanCommand,
-  DeleteCommand, // 🔥 NEW
+  DeleteCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const { v4: uuidv4 } = require("uuid");
 const { dynamoDB } = require("../config/dynamo");
@@ -57,8 +57,7 @@ const createCancellationEntry = async (invoice) => {
   };
 
   try {
-    const command = new PutCommand(params);
-    await dynamoDB.send(command);
+    await dynamoDB.send(new PutCommand(params));
     return itemToStore;
   } catch (err) {
     throw new Error(`DynamoDB Cancellation Create Error: ${err.message}`);
@@ -67,22 +66,15 @@ const createCancellationEntry = async (invoice) => {
 
 const fetchInvoiceAndStoreCancellation = async (invoiceId) => {
   const invoice = findInvoiceByInvoiceId(invoiceId);
-
-  if (!invoice) {
-    return null;
-  }
-
+  if (!invoice) return null;
   return await createCancellationEntry(invoice);
 };
 
 const getAllCancellations = async () => {
-  const params = {
-    TableName: TABLE_NAME,
-  };
-
   try {
-    const command = new ScanCommand(params);
-    const response = await dynamoDB.send(command);
+    const response = await dynamoDB.send(
+      new ScanCommand({ TableName: TABLE_NAME })
+    );
     return response.Items || [];
   } catch (err) {
     throw new Error(`DynamoDB Fetch All Cancellations Error: ${err.message}`);
@@ -92,17 +84,16 @@ const getAllCancellations = async () => {
 /* ================= AMOUNT ADDITION SUPPORT ================= */
 
 const getCancellationsByInvoiceId = async (invId) => {
-  const params = {
-    TableName: TABLE_NAME,
-    FilterExpression: "inv_id = :invId",
-    ExpressionAttributeValues: {
-      ":invId": invId,
-    },
-  };
-
   try {
-    const command = new ScanCommand(params);
-    const response = await dynamoDB.send(command);
+    const response = await dynamoDB.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: "inv_id = :invId",
+        ExpressionAttributeValues: {
+          ":invId": invId,
+        },
+      })
+    );
     return response.Items || [];
   } catch (err) {
     throw new Error(`Fetch Cancellation By Invoice Error: ${err.message}`);
@@ -111,14 +102,11 @@ const getCancellationsByInvoiceId = async (invId) => {
 
 const getLatestCancellationByInvoiceId = async (invId) => {
   const vouchers = await getCancellationsByInvoiceId(invId);
+  if (vouchers.length === 0) return null;
 
-  if (vouchers.length === 0) {
-    return null;
-  }
-
-  return vouchers.reduce((latest, current) => {
-    return current.version > latest.version ? current : latest;
-  });
+  return vouchers.reduce((latest, current) =>
+    current.version > latest.version ? current : latest
+  );
 };
 
 const createNextVersionCancellation = async (latestVoucher, amountToAdd) => {
@@ -138,63 +126,70 @@ const createNextVersionCancellation = async (latestVoucher, amountToAdd) => {
     createdAt: new Date().toISOString(),
   };
 
-  const params = {
-    TableName: TABLE_NAME,
-    Item: newVoucher,
-  };
-
   try {
-    const command = new PutCommand(params);
-    await dynamoDB.send(command);
+    await dynamoDB.send(
+      new PutCommand({
+        TableName: TABLE_NAME,
+        Item: newVoucher,
+      })
+    );
     return newVoucher;
   } catch (err) {
     throw new Error(`Create Next Cancellation Version Error: ${err.message}`);
   }
 };
 
-/* ================= 🔥 HARD DELETE SUPPORT ================= */
+/* ================= HARD DELETE SUPPORT ================= */
 
-/**
- * 9️⃣ Hard delete a cancellation voucher by cancellation ID
- */
 const deleteCancellationById = async (cancellationId) => {
-  const params = {
-    TableName: TABLE_NAME,
-    Key: {
-      _id: cancellationId,
-    },
-    ConditionExpression: "attribute_exists(#id)",
-    ExpressionAttributeNames: {
-      "#id": "_id",
-    },
-  };
-
   try {
-    const command = new DeleteCommand(params);
-    await dynamoDB.send(command);
+    await dynamoDB.send(
+      new DeleteCommand({
+        TableName: TABLE_NAME,
+        Key: { _id: cancellationId },
+        ConditionExpression: "attribute_exists(#id)",
+        ExpressionAttributeNames: {
+          "#id": "_id",
+        },
+      })
+    );
     return true;
   } catch (err) {
-    if (err.name === "ConditionalCheckFailedException") {
-      return false;
-    }
+    if (err.name === "ConditionalCheckFailedException") return false;
     throw new Error(`Delete Cancellation Error: ${err.message}`);
   }
 };
 
-/* ================= 🔥 DELETE LATEST BY INVOICE ================= */
+/* ================= DELETE LATEST BY INVOICE ================= */
 
-/**
- * 🔟 Delete latest (highest version) cancellation voucher by invoice ID
- */
 const deleteLatestCancellationByInvoiceId = async (invId) => {
   const latestVoucher = await getLatestCancellationByInvoiceId(invId);
-
-  if (!latestVoucher) {
-    return null;
-  }
+  if (!latestVoucher) return null;
 
   await deleteCancellationById(latestVoucher._id);
   return latestVoucher;
+};
+
+/* ================= 🔥 NEW FEATURE ================= */
+
+/**
+ * 🔟 Get latest cancellation voucher for ALL invoices
+ */
+const getLatestCancellationsForAllInvoices = async () => {
+  const all = await getAllCancellations();
+  const latestMap = {};
+
+  for (const voucher of all) {
+    const invId = voucher.inv_id;
+    if (
+      !latestMap[invId] ||
+      voucher.version > latestMap[invId].version
+    ) {
+      latestMap[invId] = voucher;
+    }
+  }
+
+  return Object.values(latestMap);
 };
 
 /* ================= EXPORTS ================= */
@@ -208,7 +203,8 @@ module.exports = {
   createNextVersionCancellation,
 
   deleteCancellationById,
+  deleteLatestCancellationByInvoiceId,
 
   // 🔥 NEW EXPORT
-  deleteLatestCancellationByInvoiceId,
+  getLatestCancellationsForAllInvoices,
 };
