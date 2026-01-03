@@ -9,43 +9,34 @@ const {
   getCancellationVersionsByInvoiceId,
   getLatestCancellationByInvoiceId,
   getLatestCancellationsForAllInvoices,
-  getCancellationById,              // 🔥 NEW
+  getCancellationById, // 🔥 NEW
   deleteCancellationById,
   deleteLatestCancellationByInvoiceId,
 } = require("../controllers/cancellation.controller");
+const {
+  getLatestInvoicesForPhone,
+} = require("../controllers/invoiceController");
 
 /**
  * @route   POST /api/cancellation/:invoiceId
  * @desc    Fetch single invoice from JSON & store cancellation entry in DynamoDB
  * @access  Private (Any logged-in user: admin or non-admin)
  */
-router.post(
-  "/:invoiceId",
-  authMiddleware,
-  createCancellationFromInvoice
-);
+router.post("/:invoiceId", authMiddleware, createCancellationFromInvoice);
 
 /**
  * @route   GET /api/cancellation
  * @desc    Fetch all cancellation cheques
  * @access  Private (Any logged-in user: admin or non-admin)
  */
-router.get(
-  "/",
-  authMiddleware,
-  getAllCancellationCheques
-);
+router.get("/", authMiddleware, getAllCancellationCheques);
 
 /**
  * @route   POST /api/cancellation/add-amount/:invoiceId
  * @desc    Add refund amount & create next version of cancellation voucher
  * @access  Private (Any logged-in user: admin or non-admin)
  */
-router.post(
-  "/add-amount/:invoiceId",
-  authMiddleware,
-  addRefundAmount
-);
+router.post("/add-amount/:invoiceId", authMiddleware, addRefundAmount);
 
 /**
  * @route   GET /api/cancellation/by-invoice/:invoiceId
@@ -63,22 +54,14 @@ router.get(
  * @desc    Fetch a single cancellation voucher by cancellation ID
  * @access  Private (Any logged-in user: admin or non-admin)
  */
-router.get(
-  "/by-id/:cancellationId",
-  authMiddleware,
-  getCancellationById
-);
+router.get("/by-id/:cancellationId", authMiddleware, getCancellationById);
 
 /**
  * @route   GET /api/cancellation/latest-all
  * @desc    Fetch latest cancellation voucher for EACH invoice
  * @access  Private (Any logged-in user: admin or non-admin)
  */
-router.get(
-  "/latest-all",
-  authMiddleware,
-  getLatestCancellationsForAllInvoices
-);
+router.get("/latest-all", authMiddleware, getLatestCancellationsForAllInvoices);
 
 /**
  * @route   GET /api/cancellation/latest/:invoiceId
@@ -107,10 +90,8 @@ router.delete(
  * @desc    Hard delete a cancellation voucher by cancellation ID
  * @access  Private (Any logged-in user: admin or non-admin)
  */
-router.delete(
-  "/:cancellationId",
-  authMiddleware,
-  deleteCancellationById
-);
+router.delete("/:cancellationId", authMiddleware, deleteCancellationById);
+
+router.get("/invoice/:phone", authMiddleware, getLatestInvoicesForPhone);
 
 module.exports = router;
