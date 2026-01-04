@@ -4,17 +4,9 @@ const { dynamoDB } = require("../config/dynamo");
 
 const TABLE_NAME = "cancellation_app_payments";
 
-/**
- * ===============================
- * CREATE PAYMENT ENTRY
- * ===============================
- * Called internally from cancellation.controller
- *
- * @param {Object} params
- * @param {number} params.amount
- * @param {Object} params.customer
- * @param {string} params.cancellationId
- */
+/* ===============================
+   CREATE PAYMENT ENTRY
+   =============================== */
 const createPaymentEntry = async ({
   amount,
   customer,
@@ -24,7 +16,7 @@ const createPaymentEntry = async ({
   const now = new Date();
 
   const paymentItem = {
-    _id: paymentId,              // PK
+    _id: paymentId, // PK
     cancellation_id: cancellationId,
     amount,
     customer,
@@ -43,20 +35,32 @@ const createPaymentEntry = async ({
   };
 
   try {
-    const command = new PutCommand(params);
-    await dynamoDB.send(command);
+    await dynamoDB.send(new PutCommand(params));
     return paymentItem;
   } catch (err) {
     throw new Error(`Create Payment Error: ${err.message}`);
   }
 };
 
-/**
- * ===============================
- * GET PAYMENTS BY CANCELLATION ID
- * ===============================
- * (Useful for history screen later)
- */
+/* ===============================
+   GET ALL PAYMENTS
+   =============================== */
+const getAllPayments = async () => {
+  const params = {
+    TableName: TABLE_NAME,
+  };
+
+  try {
+    const response = await dynamoDB.send(new ScanCommand(params));
+    return response.Items || [];
+  } catch (err) {
+    throw new Error(`Fetch All Payments Error: ${err.message}`);
+  }
+};
+
+/* ===============================
+   GET PAYMENTS BY CANCELLATION ID
+   =============================== */
 const getPaymentsByCancellationId = async (cancellationId) => {
   const params = {
     TableName: TABLE_NAME,
@@ -67,15 +71,70 @@ const getPaymentsByCancellationId = async (cancellationId) => {
   };
 
   try {
-    const command = new ScanCommand(params);
-    const response = await dynamoDB.send(command);
+    const response = await dynamoDB.send(new ScanCommand(params));
     return response.Items || [];
   } catch (err) {
-    throw new Error(`Fetch Payments Error: ${err.message}`);
+    throw new Error(`Fetch Payments By Cancellation Error: ${err.message}`);
   }
 };
 
+/* ===============================
+   GET PAYMENTS BY INVOICE ID
+   ===============================
+   NOTE:
+   payments table doesn’t store invoiceId directly.
+   We infer via cancellation_id → invoice relationship later if needed.
+   For now, we assume invoiceId is embedded in customer / metadata if present.
+*/
+const getPaymentsByInvoiceId = async (invoiceId) => {
+  const params = {
+    TableName: TABLE_NAME,
+    FilterExpression: "contains(#cust, :inv)",
+    ExpressionAttributeNames: {
+      "#cust": "customer",
+    },
+    ExpressionAttributeValues: {
+      ":inv": invoiceId,
+    },
+  };
+
+  try {
+    const response = await dynamoDB.send(new ScanCommand(params));
+    return response.Items || [];
+  } catch (err) {
+    throw new Error(`Fetch Payments By Invoice Error: ${err.message}`);
+  }
+};
+
+/* ===============================
+   GET PAYMENTS BY CUSTOMER PHONE
+   =============================== */
+const getPaymentsByCustomerPhone = async (phone) => {
+  const params = {
+    TableName: TABLE_NAME,
+    FilterExpression: "customer.phone = :phone",
+    ExpressionAttributeValues: {
+      ":phone": phone,
+    },
+  };
+
+  try {
+    const response = await dynamoDB.send(new ScanCommand(params));
+    return response.Items || [];
+  } catch (err) {
+    throw new Error(`Fetch Payments By Customer Error: ${err.message}`);
+  }
+};
+
+/* ===============================
+   EXPORTS
+   =============================== */
 module.exports = {
   createPaymentEntry,
-  getPaymentsByCancellationId, // future-proof, read-only usage
+
+  // READ APIs
+  getAllPayments,
+  getPaymentsByInvoiceId,
+  getPaymentsByCancellationId,
+  getPaymentsByCustomerPhone,
 };

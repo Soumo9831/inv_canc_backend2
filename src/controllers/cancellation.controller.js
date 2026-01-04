@@ -26,7 +26,7 @@ const createCancellationFromInvoice = async (req, res) => {
 
     /* 🔥 PAYMENT ENTRY ON NEW CANCELLATION */
     if (result.already_returned && result.already_returned > 0) {
-      await paymentsRepo.createPayment({
+      await paymentsRepo.createPaymentEntry({
         cancellation_id: result._id,
         amount: result.already_returned,
         customer: result.customer,
@@ -117,7 +117,7 @@ const addRefundAmount = async (req, res) => {
       );
 
     /* 🔥 PAYMENT ENTRY ON NEW VERSION CREATION */
-    await paymentsRepo.createPayment({
+    await paymentsRepo.createPaymentEntry({
       cancellation_id: newVoucher._id,
       amount: amountToAdd,
       customer: newVoucher.customer,
