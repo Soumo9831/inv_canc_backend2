@@ -4,7 +4,9 @@ const {
   ScanCommand,
   DeleteCommand,
 } = require("@aws-sdk/lib-dynamodb");
-const { v4: uuidv4 } = require("uuid");
+const { randomUUID } = require("crypto");
+
+const uuidv4 = () => randomUUID();
 const { dynamoDB } = require("../config/dynamo"); // Ensure this matches your config export
 
 const TABLE_NAME = "cancellation_app_users"; // Ensure this matches your AWS Table Name

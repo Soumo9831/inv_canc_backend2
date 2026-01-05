@@ -8,18 +8,19 @@ const {
 const { dynamoDB } = require("../config/dynamo");
 const TABLE_NAME = "Invoice_app_invoices";
 
+const cancellationRepo = require("./cancellation.repo");
+
 const getLatestInvoicesByPhone = async (phone) => {
   try {
     const params = {
       TableName: TABLE_NAME,
-
       FilterExpression: "#c.#p = :phone",
       ExpressionAttributeNames: {
         "#c": "customer",
         "#p": "phone",
       },
       ExpressionAttributeValues: {
-        ":phone": String(phone), // important: force string
+        ":phone": String(phone),
       },
     };
 
@@ -34,24 +35,38 @@ const getLatestInvoicesByPhone = async (phone) => {
 
     const referencedIds = new Set();
 
-    // collect previousInvoiceIds only inside this customer scope
     for (const inv of invoices) {
       if (inv.previousInvoiceId) {
         referencedIds.add(inv.previousInvoiceId);
       }
     }
 
-    // latest = not referenced by any other
     const latestInvoices = invoices.filter(
       (inv) => !referencedIds.has(inv._id)
     );
 
-    // newest first for UI
-    latestInvoices.sort(
-      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-    );
+    /* ===============================
+       🔥 FILTER USING LEDGER (NO FLAGS)
+       Exclude invoice if ANY cancellation exists
+    ================================ */
 
-    return latestInvoices;
+    const filtered = [];
+
+    for (const inv of latestInvoices) {
+      const cancellations = await cancellationRepo.getCancellationsByInvoiceId(
+        inv._id
+      );
+
+      // If no cancellation vouchers → invoice is active
+      if (!cancellations || cancellations.length === 0) {
+        filtered.push(inv);
+      }
+    }
+
+    // newest first for UI
+    filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    return filtered;
   } catch (err) {
     throw new Error(
       `Latest Invoice Fetch By Customer Phone Error: ${err.message}`

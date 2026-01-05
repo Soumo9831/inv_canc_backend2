@@ -7,6 +7,15 @@ const createCancellationFromInvoice = async (req, res) => {
   try {
     const { invoiceId } = req.params;
 
+    const {
+      cancellation_charge,
+      net_return,
+      already_returned,
+      yetTB_returned,
+      payment,
+    } = req.body;
+
+    // 🔒 Basic validation
     if (!invoiceId) {
       return res.status(400).json({
         success: false,
@@ -14,8 +23,28 @@ const createCancellationFromInvoice = async (req, res) => {
       });
     }
 
-    const result =
-      await cancellationRepo.fetchInvoiceAndStoreCancellation(invoiceId);
+    if (
+      cancellation_charge === undefined ||
+      net_return === undefined ||
+      already_returned === undefined ||
+      yetTB_returned === undefined
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "cancellation_charge, net_return, already_returned and yetTB_returned are required",
+      });
+    }
+
+    // 1️⃣ Create cancellation entry from invoice
+    const result = await cancellationRepo.fetchInvoiceAndStoreCancellation({
+      invoiceId,
+      cancellation_charge,
+      net_return,
+      already_returned,
+      yetTB_returned,
+      payment,
+    });
 
     if (!result) {
       return res.status(404).json({
@@ -24,12 +53,13 @@ const createCancellationFromInvoice = async (req, res) => {
       });
     }
 
-    /* 🔥 PAYMENT ENTRY ON NEW CANCELLATION */
-    if (result.already_returned && result.already_returned > 0) {
+    // 2️⃣ Auto-record returned money
+    if (Number(already_returned) > 0) {
       await paymentsRepo.createPaymentEntry({
         cancellation_id: result._id,
-        amount: result.already_returned,
+        amount: Number(already_returned),
         customer: result.customer,
+        payment,
       });
     }
 
@@ -42,7 +72,7 @@ const createCancellationFromInvoice = async (req, res) => {
     console.error("Cancellation Controller Error:", err.message);
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message: err.message || "Internal server error",
     });
   }
 };
@@ -64,13 +94,12 @@ const getAllCancellationCheques = async (req, res) => {
     });
   }
 };
-
 /* ================= AMOUNT ADDITION ================= */
 
 const addRefundAmount = async (req, res) => {
   try {
     const { invoiceId } = req.params;
-    const { amountToAdd } = req.body;
+    const { amountToAdd, payment } = req.body;
 
     if (!invoiceId || !amountToAdd) {
       return res.status(400).json({
@@ -96,12 +125,12 @@ const addRefundAmount = async (req, res) => {
       });
     }
 
-    if (latestVoucher.status === true) {
-      return res.status(400).json({
-        success: false,
-        message: "Refund has already been fully settled",
-      });
-    }
+    // if (latestVoucher.status === true) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "Refund has already been fully settled",
+    //   });
+    // }
 
     if (amountToAdd > latestVoucher.yetTB_returned) {
       return res.status(400).json({
@@ -110,17 +139,18 @@ const addRefundAmount = async (req, res) => {
       });
     }
 
-    const newVoucher =
-      await cancellationRepo.createNextVersionCancellation(
-        latestVoucher,
-        amountToAdd
-      );
+    const newVoucher = await cancellationRepo.createNextVersionCancellation(
+      latestVoucher,
+      amountToAdd,
+      payment
+    );
 
     /* 🔥 PAYMENT ENTRY ON NEW VERSION CREATION */
     await paymentsRepo.createPaymentEntry({
       cancellation_id: newVoucher._id,
       amount: amountToAdd,
       customer: newVoucher.customer,
+      payment,
     });
 
     return res.status(201).json({
@@ -144,14 +174,14 @@ const getCancellationVersionsByInvoiceId = async (req, res) => {
     const { invoiceId } = req.params;
 
     const vouchers =
-      await cancellationRepo.getCancellationsByInvoiceId(invoiceId);
+      await cancellationRepo.getCancellationsByInvoiceIdExceptLatest(invoiceId);
 
-    if (!vouchers || vouchers.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: "No cancellation vouchers found for this invoice",
-      });
-    }
+    // if (!vouchers || vouchers.length === 0) {
+    //   return res.status(404).json({
+    //     success: false,
+    //     message: "No cancellation vouchers found for this invoice",
+    //   });
+    // }
 
     return res.status(200).json({
       success: true,
@@ -211,8 +241,9 @@ const deleteCancellationById = async (req, res) => {
       });
     }
 
-    const deleted =
-      await cancellationRepo.deleteCancellationById(cancellationId);
+    const deleted = await cancellationRepo.deleteCancellationById(
+      cancellationId
+    );
 
     if (!deleted) {
       return res.status(404).json({
@@ -251,12 +282,11 @@ const deleteLatestCancellationByInvoiceId = async (req, res) => {
     }
 
     await cancellationRepo.deleteCancellationById(latestVoucher._id);
+    await paymentsRepo.deletePaymentByCancellationId(latestVoucher._id);
 
     return res.status(200).json({
       success: true,
       message: "Latest cancellation voucher deleted successfully",
-      deletedVersion: latestVoucher.version,
-      cancellationId: latestVoucher._id,
     });
   } catch (err) {
     console.error("Delete Latest Cancellation Error:", err.message);
@@ -316,9 +346,7 @@ const getCancellationById = async (req, res) => {
 
     const cancellations = await cancellationRepo.getAllCancellations();
 
-    const voucher = cancellations.find(
-      (item) => item._id === cancellationId
-    );
+    const voucher = cancellations.find((item) => item._id === cancellationId);
 
     if (!voucher) {
       return res.status(404).json({
@@ -339,7 +367,6 @@ const getCancellationById = async (req, res) => {
     });
   }
 };
-
 
 /* ================= EXPORTS ================= */
 

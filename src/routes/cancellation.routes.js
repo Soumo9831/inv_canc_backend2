@@ -18,6 +18,17 @@ const {
 } = require("../controllers/invoiceController");
 
 /**
+ * @route   GET /api/cancellation/latest-all
+ * @desc    Fetch latest cancellation voucher for EACH invoice
+ * @access  Private (Any logged-in user: admin or non-admin)
+ */
+router.get(
+  "/voucher/latest-all",
+  authMiddleware,
+  getLatestCancellationsForAllInvoices
+);
+
+/**
  * @route   POST /api/cancellation/:invoiceId
  * @desc    Fetch single invoice from JSON & store cancellation entry in DynamoDB
  * @access  Private (Any logged-in user: admin or non-admin)
@@ -55,13 +66,6 @@ router.get(
  * @access  Private (Any logged-in user: admin or non-admin)
  */
 router.get("/by-id/:cancellationId", authMiddleware, getCancellationById);
-
-/**
- * @route   GET /api/cancellation/latest-all
- * @desc    Fetch latest cancellation voucher for EACH invoice
- * @access  Private (Any logged-in user: admin or non-admin)
- */
-router.get("/latest-all", authMiddleware, getLatestCancellationsForAllInvoices);
 
 /**
  * @route   GET /api/cancellation/latest/:invoiceId

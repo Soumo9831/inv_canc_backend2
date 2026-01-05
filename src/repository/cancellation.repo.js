@@ -1,54 +1,68 @@
-const fs = require("fs");
-const path = require("path");
 const {
   PutCommand,
   ScanCommand,
   DeleteCommand,
+  GetCommand,
 } = require("@aws-sdk/lib-dynamodb");
-const { v4: uuidv4 } = require("uuid");
+const { randomUUID } = require("crypto");
+
+const uuidv4 = () => randomUUID();
 const { dynamoDB } = require("../config/dynamo");
+const generateCancellationId = require("../utils/generateCancellationId");
 
 const TABLE_NAME = "cancellation_app_voucher";
 
-// Path to dummy invoices JSON
-const invoicesFilePath = path.join(__dirname, "../../invoices.json");
+const INVOICE_TABLE = "Invoice_app_invoices";
 
 /* ================= EXISTING CODE (UNCHANGED) ================= */
 
-const readInvoicesFromFile = () => {
-  const rawData = fs.readFileSync(invoicesFilePath, "utf-8");
-  const parsed = JSON.parse(rawData);
-  return parsed.invoices || [];
+const findInvoiceByInvoiceId = async (invoiceId) => {
+  const params = {
+    TableName: INVOICE_TABLE,
+    Key: {
+      _id: invoiceId,
+    },
+  };
+
+  try {
+    const res = await dynamoDB.send(new GetCommand(params));
+    return res.Item || null;
+  } catch (err) {
+    throw new Error(`DynamoDB Invoice Fetch Error: ${err.message}`);
+  }
 };
 
-const findInvoiceByInvoiceId = (invoiceId) => {
-  const invoices = readInvoicesFromFile();
-  return invoices.find((inv) => inv._id === invoiceId);
-};
-
-const createCancellationEntry = async (invoice) => {
-  const cancellationId = uuidv4();
+const createCancellationEntry = async ({
+  invoice,
+  cancellation_charge,
+  net_return,
+  already_returned,
+  yetTB_returned,
+  payment,
+}) => {
+  const cancellationId = generateCancellationId();
 
   const itemToStore = {
     _id: cancellationId,
     inv_id: invoice._id,
+
     customer: invoice.customer,
     company: invoice.company,
     items: invoice.items,
 
     advance: invoice.advance,
-    cancellation_charge: invoice.cancellation_charge,
-    net_return: invoice.net_return,
-    already_returned: invoice.already_returned,
-    yetTB_returned: invoice.yetTB_returned,
-    status: invoice.status,
 
+    cancellation_charge,
+    net_return,
+    already_returned,
+    yetTB_returned,
+    payment,
     version: invoice.version || 1,
     createdAt: new Date().toISOString(),
   };
 
   const params = {
-    TableName: TABLE_NAME,
+    TableName: TABLE_NAME, // your cancellation table
     Item: itemToStore,
     ConditionExpression: "attribute_not_exists(#id)",
     ExpressionAttributeNames: {
@@ -64,10 +78,30 @@ const createCancellationEntry = async (invoice) => {
   }
 };
 
-const fetchInvoiceAndStoreCancellation = async (invoiceId) => {
-  const invoice = findInvoiceByInvoiceId(invoiceId);
-  if (!invoice) return null;
-  return await createCancellationEntry(invoice);
+const fetchInvoiceAndStoreCancellation = async ({
+  invoiceId,
+  cancellation_charge,
+  net_return,
+  already_returned,
+  yetTB_returned,
+  payment,
+}) => {
+  // 1️⃣ Fetch invoice from invoice_app_invoices
+  const invoice = await findInvoiceByInvoiceId(invoiceId);
+
+  if (!invoice) {
+    throw new Error("Invoice not found");
+  }
+
+  // 2️⃣ Store cancellation entry
+  return await createCancellationEntry({
+    invoice,
+    cancellation_charge: Number(cancellation_charge),
+    net_return: Number(net_return),
+    already_returned: Number(already_returned),
+    yetTB_returned: Number(yetTB_returned),
+    payment,
+  });
 };
 
 const getAllCancellations = async () => {
@@ -94,35 +128,49 @@ const getCancellationsByInvoiceId = async (invId) => {
         },
       })
     );
+
     return response.Items || [];
   } catch (err) {
     throw new Error(`Fetch Cancellation By Invoice Error: ${err.message}`);
   }
 };
+const getCancellationsByInvoiceIdExceptLatest = async (invId) => {
+  const vouchers = await getCancellationsByInvoiceId(invId);
+  if (vouchers.length === 0) return [];
+
+  const latestVersion = Math.max(...vouchers.map((v) => v.version));
+  return vouchers.filter((v) => v.version !== latestVersion);
+};
 
 const getLatestCancellationByInvoiceId = async (invId) => {
   const vouchers = await getCancellationsByInvoiceId(invId);
-  if (vouchers.length === 0) return null;
 
-  return vouchers.reduce((latest, current) =>
-    current.version > latest.version ? current : latest
-  );
+  // No cancellations exist
+  if (!vouchers || vouchers.length === 0) return null;
+
+  // Return the voucher with the highest version
+  return vouchers.reduce((latest, current) => {
+    return current.version > latest.version ? current : latest;
+  });
 };
 
-const createNextVersionCancellation = async (latestVoucher, amountToAdd) => {
-  const newAlreadyReturned =
-    latestVoucher.already_returned + amountToAdd;
+const createNextVersionCancellation = async (
+  latestVoucher,
+  amountToAdd,
+  payment
+) => {
+  const newAlreadyReturned = latestVoucher.already_returned + amountToAdd;
 
-  const newYetToBeReturned =
-    latestVoucher.net_return - newAlreadyReturned;
+  const newYetToBeReturned = latestVoucher.net_return - newAlreadyReturned;
 
   const newVoucher = {
     ...latestVoucher,
-    _id: uuidv4(),
+    _id: generateCancellationId(),
     already_returned: newAlreadyReturned,
     yetTB_returned: newYetToBeReturned,
     status: newYetToBeReturned === 0,
     version: latestVoucher.version + 1,
+    payment: payment,
     createdAt: new Date().toISOString(),
   };
 
@@ -181,10 +229,7 @@ const getLatestCancellationsForAllInvoices = async () => {
 
   for (const voucher of all) {
     const invId = voucher.inv_id;
-    if (
-      !latestMap[invId] ||
-      voucher.version > latestMap[invId].version
-    ) {
+    if (!latestMap[invId] || voucher.version > latestMap[invId].version) {
       latestMap[invId] = voucher;
     }
   }
@@ -192,15 +237,39 @@ const getLatestCancellationsForAllInvoices = async () => {
   return Object.values(latestMap);
 };
 
+/**
+ * 🔍 Check if ANY cancellation voucher exists for an invoice
+ */
+const hasCancellationForInvoice = async (invId) => {
+  try {
+    const response = await dynamoDB.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: "inv_id = :invId",
+        ExpressionAttributeValues: {
+          ":invId": invId,
+        },
+        ProjectionExpression: "_id", // fetch only minimal data
+      })
+    );
+
+    return (response.Items || []).length > 0;
+  } catch (err) {
+    throw new Error(`Check Cancellation Exists Error: ${err.message}`);
+  }
+};
+
 /* ================= EXPORTS ================= */
 
 module.exports = {
   fetchInvoiceAndStoreCancellation,
   getAllCancellations,
+  hasCancellationForInvoice,
 
   getCancellationsByInvoiceId,
   getLatestCancellationByInvoiceId,
   createNextVersionCancellation,
+  getCancellationsByInvoiceIdExceptLatest,
 
   deleteCancellationById,
   deleteLatestCancellationByInvoiceId,
