@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const authMiddleware = require("../middleware/authMiddleware");
+const authorizeRoles = require("../middleware/roleMiddleware");
 const {
   createCancellationFromInvoice,
   getAllCancellationCheques,
@@ -12,6 +13,7 @@ const {
   getCancellationById, // 🔥 NEW
   deleteCancellationById,
   deleteLatestCancellationByInvoiceId,
+  getMyVoucher,
 } = require("../controllers/cancellation.controller");
 const {
   getLatestInvoicesForPhone,
@@ -86,6 +88,7 @@ router.get(
 router.delete(
   "/latest/:invoiceId",
   authMiddleware,
+  authorizeRoles("admin"),
   deleteLatestCancellationByInvoiceId
 );
 
@@ -94,8 +97,15 @@ router.delete(
  * @desc    Hard delete a cancellation voucher by cancellation ID
  * @access  Private (Any logged-in user: admin or non-admin)
  */
-router.delete("/:cancellationId", authMiddleware, deleteCancellationById);
+router.delete(
+  "/:cancellationId",
+  authMiddleware,
+  authorizeRoles("admin"),
+  deleteCancellationById
+);
 
 router.get("/invoice/:phone", authMiddleware, getLatestInvoicesForPhone);
+
+router.get("/my-voucher", authMiddleware, getMyVoucher);
 
 module.exports = router;

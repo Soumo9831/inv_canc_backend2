@@ -4,7 +4,8 @@ const cors = require("cors");
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/userRoutes");
 const cancellationRoutes = require("./routes/cancellation.routes");
-const paymentRoutes = require("./routes/payments.routes"); // 🔥 NEW
+const paymentRoutes = require("./routes/payments.routes");
+const analyticsRoutes = require("./routes/analyticsRoute");
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use(
 app.use(express.json());
 
 // Routes
+app.use("/api/v1/analytics", analyticsRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/cancellation", cancellationRoutes);

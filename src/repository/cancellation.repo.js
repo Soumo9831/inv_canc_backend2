@@ -39,8 +39,11 @@ const createCancellationEntry = async ({
   already_returned,
   yetTB_returned,
   payment,
+  executiveName,
 }) => {
   const cancellationId = generateCancellationId();
+  const now = new Date();
+  const istDate = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
 
   const itemToStore = {
     _id: cancellationId,
@@ -49,16 +52,19 @@ const createCancellationEntry = async ({
     customer: invoice.customer,
     company: invoice.company,
     items: invoice.items,
+    charges: invoice.charges,
+    paid: already_returned,
 
     advance: invoice.advance,
+    executiveName: executiveName,
 
     cancellation_charge,
     net_return,
     already_returned,
     yetTB_returned,
     payment,
-    version: invoice.version || 1,
-    createdAt: new Date().toISOString(),
+    version: 1,
+    createdAt: istDate.toISOString(),
   };
 
   const params = {
@@ -85,6 +91,7 @@ const fetchInvoiceAndStoreCancellation = async ({
   already_returned,
   yetTB_returned,
   payment,
+  executiveName,
 }) => {
   // 1️⃣ Fetch invoice from invoice_app_invoices
   const invoice = await findInvoiceByInvoiceId(invoiceId);
@@ -101,6 +108,7 @@ const fetchInvoiceAndStoreCancellation = async ({
     already_returned: Number(already_returned),
     yetTB_returned: Number(yetTB_returned),
     payment,
+    executiveName,
   });
 };
 
@@ -163,15 +171,19 @@ const createNextVersionCancellation = async (
 
   const newYetToBeReturned = latestVoucher.net_return - newAlreadyReturned;
 
+  const now = new Date();
+  const istDate = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+
   const newVoucher = {
     ...latestVoucher,
     _id: generateCancellationId(),
+    paid: amountToAdd,
     already_returned: newAlreadyReturned,
     yetTB_returned: newYetToBeReturned,
     status: newYetToBeReturned === 0,
     version: latestVoucher.version + 1,
     payment: payment,
-    createdAt: new Date().toISOString(),
+    createdAt: istDate.toISOString(),
   };
 
   try {
@@ -258,6 +270,74 @@ const hasCancellationForInvoice = async (invId) => {
     throw new Error(`Check Cancellation Exists Error: ${err.message}`);
   }
 };
+const getCancellationDashboardStats = async () => {
+  try {
+    const all = await getAllCancellations();
+
+    const latestMap = {};
+
+    // 1️⃣ Keep only the latest voucher per invoice
+    for (const v of all) {
+      const invId = v.inv_id;
+
+      if (!latestMap[invId] || v.version > latestMap[invId].version) {
+        latestMap[invId] = v;
+      }
+    }
+
+    const latestVouchers = Object.values(latestMap);
+
+    // 2️⃣ Aggregate
+    let totalInvoices = 0;
+    let totalPaid = 0;
+    let totalDue = 0;
+
+    for (const v of latestVouchers) {
+      totalInvoices++;
+      totalPaid += Number(v.already_returned || 0);
+      totalDue += Number(v.yetTB_returned || 0);
+    }
+
+    return {
+      totalVoucher: totalInvoices,
+      totalPaid,
+      totalDue,
+    };
+  } catch (err) {
+    throw new Error(`Cancellation Dashboard Stats Error: ${err.message}`);
+  }
+};
+
+const getCancellationsByExecutiveName = async (executiveName) => {
+  try {
+    const response = await dynamoDB.send(
+      new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: "executiveName = :exec",
+        ExpressionAttributeValues: {
+          ":exec": executiveName,
+        },
+      })
+    );
+
+    const all = response.Items || [];
+
+    // 🧠 Keep only latest voucher per invoice
+    const latestMap = {};
+
+    for (const voucher of all) {
+      const invId = voucher.inv_id;
+
+      if (!latestMap[invId] || voucher.version > latestMap[invId].version) {
+        latestMap[invId] = voucher;
+      }
+    }
+
+    return Object.values(latestMap);
+  } catch (err) {
+    throw new Error(`Fetch Cancellation By Executive Error: ${err.message}`);
+  }
+};
 
 /* ================= EXPORTS ================= */
 
@@ -265,7 +345,8 @@ module.exports = {
   fetchInvoiceAndStoreCancellation,
   getAllCancellations,
   hasCancellationForInvoice,
-
+  getCancellationDashboardStats,
+  getCancellationsByExecutiveName,
   getCancellationsByInvoiceId,
   getLatestCancellationByInvoiceId,
   createNextVersionCancellation,

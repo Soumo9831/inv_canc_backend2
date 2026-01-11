@@ -21,6 +21,7 @@ const createPaymentEntry = async ({
 }) => {
   const paymentId = uuidv4();
   const now = new Date();
+  const istDate = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
 
   const paymentItem = {
     _id: paymentId, // PK
@@ -28,7 +29,7 @@ const createPaymentEntry = async ({
     amount,
     customer,
     payment,
-    createdAt: now.toISOString(),
+    createdAt: istDate.toISOString(),
   };
 
   const params = {
@@ -187,6 +188,74 @@ const deletePaymentByCancellationId = async (cancellationId) => {
   }
 };
 
+const getLast30DaysPaymentsSummary = async () => {
+  try {
+    const command = new ScanCommand({
+      TableName: TABLE_NAME,
+    });
+
+    const result = await dynamoDB.send(command);
+    const payments = result.Items || [];
+
+    /* ================================
+       Prepare date helpers
+    ================================= */
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - 29); // last 30 days incl today
+
+    /* ================================
+       Create base map with 0 values
+    ================================= */
+
+    const dateMap = {};
+
+    for (let i = 0; i < 30; i++) {
+      const d = new Date(startDate);
+      d.setDate(startDate.getDate() + i);
+
+      const key = d.toISOString().split("T")[0]; // YYYY-MM-DD
+
+      dateMap[key] = {
+        price: 0,
+        day: d.getDate(),
+        month: d.toLocaleString("en-IN", { month: "short" }),
+      };
+    }
+
+    /* ================================
+       Aggregate payments
+    ================================= */
+
+    for (const payment of payments) {
+      if (!payment.createdAt || !payment.amount) continue;
+
+      const paymentDate = new Date(payment.createdAt);
+      paymentDate.setHours(0, 0, 0, 0);
+
+      if (paymentDate >= startDate && paymentDate <= today) {
+        const key = paymentDate.toISOString().split("T")[0];
+        dateMap[key].price += Number(payment.amount);
+      }
+    }
+
+    /* ================================
+       Convert to array (sorted)
+    ================================= */
+
+    const response = Object.keys(dateMap)
+      .sort()
+      .map((key) => dateMap[key]);
+
+    return response;
+  } catch (err) {
+    throw new Error(`DynamoDB 30 Days Payment Summary Error: ${err.message}`);
+  }
+};
+
 /* ===============================
    EXPORTS
    =============================== */
@@ -194,6 +263,7 @@ module.exports = {
   createPaymentEntry,
   deletePaymentByCancellationId,
   // READ APIs
+  getLast30DaysPaymentsSummary,
   getAllPayments,
   getPaymentsByInvoiceId,
   getPaymentsByCancellationId,

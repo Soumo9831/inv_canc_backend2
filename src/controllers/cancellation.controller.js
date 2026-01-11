@@ -1,5 +1,6 @@
 const cancellationRepo = require("../repository/cancellation.repo");
-const paymentsRepo = require("../repository/payments.repo"); // 🔥 NEW
+const paymentsRepo = require("../repository/payments.repo");
+const userRepo = require("../repository/user.repo");
 
 /* ================= EXISTING CODE (UNCHANGED) ================= */
 
@@ -14,6 +15,19 @@ const createCancellationFromInvoice = async (req, res) => {
       yetTB_returned,
       payment,
     } = req.body;
+    const { userId, role } = req.user;
+
+    let executiveName = "System";
+
+    if (role === "user") {
+      const user = await userRepo.findUserById(userId);
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      executiveName = user.name;
+    }
 
     // 🔒 Basic validation
     if (!invoiceId) {
@@ -44,6 +58,7 @@ const createCancellationFromInvoice = async (req, res) => {
       already_returned,
       yetTB_returned,
       payment,
+      executiveName,
     });
 
     if (!result) {
@@ -368,6 +383,34 @@ const getCancellationById = async (req, res) => {
   }
 };
 
+const getMyVoucher = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const role = req.user.role;
+
+    if (role !== "user") {
+      return res.status(403).json({ message: "Only executives allowed" });
+    }
+
+    const user = await userRepo.findUserById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const cancellations =
+      await cancellationRepo.getCancellationsByExecutiveName(user.name);
+
+    res.status(200).json({
+      success: true,
+      count: cancellations.length,
+      data: cancellations,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
 /* ================= EXPORTS ================= */
 
 module.exports = {
@@ -380,4 +423,5 @@ module.exports = {
   deleteLatestCancellationByInvoiceId,
   getLatestCancellationsForAllInvoices,
   getCancellationById,
+  getMyVoucher,
 };

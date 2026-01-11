@@ -1,6 +1,7 @@
 const userRepo = require("../repository/user.repo");
 const generateToken = require("../utils/generateToken");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 exports.register = async (req, res) => {
@@ -121,5 +122,36 @@ exports.login = async (req, res) => {
   } catch (err) {
     console.error("Login error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+exports.validateToken = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        success: false,
+      });
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+      if (err) {
+        return res.status(401).json({
+          success: false,
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+      });
+    });
+  } catch (err) {
+    console.error("Token validation error:", err);
+
+    res.status(500).json({
+      success: false,
+    });
   }
 };
