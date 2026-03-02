@@ -9,22 +9,34 @@ const analyticsRoutes = require("./routes/analyticsRoute");
 
 const app = express();
 
-// CORS FIX
+// // CORS FIX
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "*",
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 
 app.use(express.json());
+
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+app.use(express.json());
+app.get("/health", (req, res) => {
+  res.json({ status: "ok" });
+});
 
 // Routes
 app.use("/api/v1/analytics", analyticsRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/cancellation", cancellationRoutes);
-app.use("/api/v1/payments", paymentRoutes); // 🔥 NEW
+app.use("/api/v1/payments", paymentRoutes);
 
 module.exports = app;

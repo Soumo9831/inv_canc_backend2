@@ -17,6 +17,7 @@ const {
 } = require("../controllers/cancellation.controller");
 const {
   getLatestInvoicesForPhone,
+  getLatestInvoicesBySearch,
 } = require("../controllers/invoiceController");
 
 /**
@@ -104,7 +105,7 @@ router.delete(
   deleteCancellationById
 );
 
-router.get("/invoice/:phone", authMiddleware, getLatestInvoicesForPhone);
+router.get("/invoice/search", authMiddleware, getLatestInvoicesBySearch);
 
 router.get("/my-voucher", authMiddleware, getMyVoucher);
 

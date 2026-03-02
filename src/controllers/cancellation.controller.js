@@ -1,6 +1,8 @@
 const cancellationRepo = require("../repository/cancellation.repo");
 const paymentsRepo = require("../repository/payments.repo");
 const userRepo = require("../repository/user.repo");
+const axios = require("axios");
+require("dotenv").config();
 
 /* ================= EXISTING CODE (UNCHANGED) ================= */
 
@@ -112,10 +114,14 @@ const getAllCancellationCheques = async (req, res) => {
 /* ================= AMOUNT ADDITION ================= */
 
 const addRefundAmount = async (req, res) => {
-  try {
-    const { invoiceId } = req.params;
-    const { amountToAdd, payment } = req.body;
+  const { invoiceId } = req.params;
+  const { amountToAdd, payment } = req.body;
 
+  let newVoucher = null;
+  let paymentCreated = false;
+  let flatSwapped = false;
+
+  try {
     if (!invoiceId || !amountToAdd) {
       return res.status(400).json({
         success: false,
@@ -140,13 +146,6 @@ const addRefundAmount = async (req, res) => {
       });
     }
 
-    // if (latestVoucher.status === true) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: "Refund has already been fully settled",
-    //   });
-    // }
-
     if (amountToAdd > latestVoucher.yetTB_returned) {
       return res.status(400).json({
         success: false,
@@ -154,19 +153,31 @@ const addRefundAmount = async (req, res) => {
       });
     }
 
-    const newVoucher = await cancellationRepo.createNextVersionCancellation(
+    // 1️⃣ Create next cancellation version
+    newVoucher = await cancellationRepo.createNextVersionCancellation(
       latestVoucher,
       amountToAdd,
-      payment
+      payment,
     );
 
-    /* 🔥 PAYMENT ENTRY ON NEW VERSION CREATION */
+    // 2️⃣ Create payment entry
     await paymentsRepo.createPaymentEntry({
       cancellation_id: newVoucher._id,
       amount: amountToAdd,
       customer: newVoucher.customer,
       payment,
     });
+    paymentCreated = true;
+
+    // 3️⃣ Swap latest cancellation on flat
+    await axios.patch(
+      `${process.env.ESTATEFLOW_BASEURL}/api/v1/cancellations/flats/swap-latest-cancellation`,
+      {
+        currentLatestCancellationId: latestVoucher._id,
+        newLatestCancellationId: newVoucher._id,
+      },
+    );
+    flatSwapped = true;
 
     return res.status(201).json({
       success: true,
@@ -175,9 +186,41 @@ const addRefundAmount = async (req, res) => {
     });
   } catch (err) {
     console.error("Add Refund Amount Error:", err.message);
+
+    /* ================= ROLLBACK ================= */
+
+    try {
+      // 🔁 Rollback flat swap
+      // if (flatSwapped && newVoucher) {
+      //   await axios.patch(
+      //     "http://localhost:8080/api/v1/cancellations/flats/swap-latest-cancellation",
+      //     {
+      //       currentLatestCancellationId: newVoucher._id,
+      //       newLatestCancellationId: latestVoucher._id,
+      //     },
+      //   );
+      // }
+
+      // 🔁 Rollback payment
+      if (paymentCreated && newVoucher) {
+        await paymentsRepo.deletePaymentByCancellationId(newVoucher._id);
+      }
+
+      // 🔁 Rollback cancellation voucher
+      if (newVoucher) {
+        await cancellationRepo.deleteCancellationById(newVoucher._id);
+      }
+    } catch (rollbackErr) {
+      console.error(
+        "🚨 CRITICAL: Rollback failed. Manual intervention required.",
+        rollbackErr.message,
+      );
+    }
+
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message:
+        "Refund failed. System state restored. Please retry the operation.",
     });
   }
 };
@@ -256,9 +299,11 @@ const deleteCancellationById = async (req, res) => {
       });
     }
 
-    const deleted = await cancellationRepo.deleteCancellationById(
-      cancellationId
-    );
+    const latestVoucher =
+      cancellationRepo.deleteCancellationById(cancellationId);
+
+    const deleted =
+      await cancellationRepo.deleteCancellationById(cancellationId);
 
     if (!deleted) {
       return res.status(404).json({
@@ -266,6 +311,22 @@ const deleteCancellationById = async (req, res) => {
         message: "Cancellation voucher not found",
       });
     }
+
+    // const newVoucher = await cancellationRepo.getLatestCancellationByInvoiceId(
+    //   latestVoucher.inv_id,
+    // );
+
+    // console.log(latestVoucher._id);
+    // console.log(newVoucher._id);
+
+    // const ress = await axios.patch(
+    //   "http://localhost:8080/api/v1/cancellations/flats/swap-latest-cancellation",
+    //   {
+    //     currentLatestCancellationId: latestVoucher._id,
+    //     newLatestCancellationId: newVoucher._id ?? null,
+    //   },
+    // );${process.env.ESTATEFLOW_BASEURL}
+    // console.log(ress.data);
 
     return res.status(200).json({
       success: true,
@@ -283,10 +344,16 @@ const deleteCancellationById = async (req, res) => {
 /* ================= DELETE LATEST BY INVOICE ================= */
 
 const deleteLatestCancellationByInvoiceId = async (req, res) => {
-  try {
-    const { invoiceId } = req.params;
+  const { invoiceId } = req.params;
 
-    const latestVoucher =
+  let latestVoucher;
+  let previousVoucher;
+  let deletedPayment;
+  let cancellationDeleted = false;
+
+  try {
+    // 1️⃣ Fetch latest BEFORE deleting
+    latestVoucher =
       await cancellationRepo.getLatestCancellationByInvoiceId(invoiceId);
 
     if (!latestVoucher) {
@@ -296,8 +363,41 @@ const deleteLatestCancellationByInvoiceId = async (req, res) => {
       });
     }
 
-    await cancellationRepo.deleteCancellationById(latestVoucher._id);
-    await paymentsRepo.deletePaymentByCancellationId(latestVoucher._id);
+    // 2️⃣ Determine previous voucher BEFORE deleting
+    const all = await cancellationRepo.getCancellationsByInvoiceId(invoiceId);
+
+    previousVoucher =
+      all
+        .filter((v) => v._id !== latestVoucher._id)
+        .sort((a, b) => b.version - a.version)[0] || null;
+
+    // 3️⃣ Delete payment FIRST (capture deleted data)
+    deletedPayment = await paymentsRepo.deletePaymentByCancellationId(
+      latestVoucher._id,
+    );
+
+    // 4️⃣ Delete cancellation voucher
+    cancellationDeleted = await cancellationRepo.deleteCancellationById(
+      latestVoucher._id,
+    );
+
+    if (!cancellationDeleted) {
+      throw new Error("Cancellation deletion failed");
+    }
+
+    if (previousVoucher === null) idd = null;
+    else idd = previousVoucher._id;
+
+    // 5️⃣ Swap flat pointer
+    console.log(latestVoucher._id, idd);
+    await axios.patch(
+      `${process.env.ESTATEFLOW_BASEURL}/api/v1/cancellations/flats/swap-latest-cancellation`,
+      {
+        currentLatestCancellationId: latestVoucher._id,
+        newLatestCancellationId: idd,
+      },
+    );
+    console.log(latestVoucher._id, idd);
 
     return res.status(200).json({
       success: true,
@@ -305,9 +405,29 @@ const deleteLatestCancellationByInvoiceId = async (req, res) => {
     });
   } catch (err) {
     console.error("Delete Latest Cancellation Error:", err.message);
+
+    /* ================= 🔁 ROLLBACK ================= */
+
+    try {
+      // 🔁 Restore cancellation voucher
+      if (cancellationDeleted && latestVoucher) {
+        await cancellationRepo.restoreCancellation(latestVoucher);
+      }
+
+      // 🔁 Restore payment
+      if (deletedPayment?.deletedPayment) {
+        await paymentsRepo.restorePayment(deletedPayment.deletedPayment);
+      }
+    } catch (rollbackErr) {
+      console.error(
+        "🚨 CRITICAL: Rollback failed. Manual intervention required.",
+        rollbackErr.message,
+      );
+    }
+
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message: "Failed to delete cancellation. System state restored.",
     });
   }
 };
@@ -320,17 +440,27 @@ const getLatestCancellationsForAllInvoices = async (req, res) => {
 
     const latestMap = {};
 
+    // Keep only latest voucher per invoice
     for (const voucher of cancellations) {
       const invId = voucher.inv_id;
+
       if (!latestMap[invId] || voucher.version > latestMap[invId].version) {
         latestMap[invId] = voucher;
       }
     }
 
+    // Convert to array
+    const latestVouchers = Object.values(latestMap);
+
+    // 🔥 Sort by time (newest first)
+    latestVouchers.sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
+    );
+
     return res.status(200).json({
       success: true,
-      count: Object.keys(latestMap).length,
-      data: Object.values(latestMap),
+      count: latestVouchers.length,
+      data: latestVouchers,
     });
   } catch (err) {
     console.error("Get Latest Cancellations For All Error:", err.message);

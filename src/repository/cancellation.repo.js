@@ -7,6 +7,7 @@ const {
 const { randomUUID } = require("crypto");
 
 const uuidv4 = () => randomUUID();
+require("dotenv").config();
 const { dynamoDB } = require("../config/dynamo");
 const generateCancellationId = require("../utils/generateCancellationId");
 
@@ -115,7 +116,7 @@ const fetchInvoiceAndStoreCancellation = async ({
 const getAllCancellations = async () => {
   try {
     const response = await dynamoDB.send(
-      new ScanCommand({ TableName: TABLE_NAME })
+      new ScanCommand({ TableName: TABLE_NAME }),
     );
     return response.Items || [];
   } catch (err) {
@@ -134,7 +135,7 @@ const getCancellationsByInvoiceId = async (invId) => {
         ExpressionAttributeValues: {
           ":invId": invId,
         },
-      })
+      }),
     );
 
     return response.Items || [];
@@ -165,7 +166,7 @@ const getLatestCancellationByInvoiceId = async (invId) => {
 const createNextVersionCancellation = async (
   latestVoucher,
   amountToAdd,
-  payment
+  payment,
 ) => {
   const newAlreadyReturned = latestVoucher.already_returned + amountToAdd;
 
@@ -191,7 +192,7 @@ const createNextVersionCancellation = async (
       new PutCommand({
         TableName: TABLE_NAME,
         Item: newVoucher,
-      })
+      }),
     );
     return newVoucher;
   } catch (err) {
@@ -211,7 +212,7 @@ const deleteCancellationById = async (cancellationId) => {
         ExpressionAttributeNames: {
           "#id": "_id",
         },
-      })
+      }),
     );
     return true;
   } catch (err) {
@@ -262,7 +263,7 @@ const hasCancellationForInvoice = async (invId) => {
           ":invId": invId,
         },
         ProjectionExpression: "_id", // fetch only minimal data
-      })
+      }),
     );
 
     return (response.Items || []).length > 0;
@@ -317,7 +318,7 @@ const getCancellationsByExecutiveName = async (executiveName) => {
         ExpressionAttributeValues: {
           ":exec": executiveName,
         },
-      })
+      }),
     );
 
     const all = response.Items || [];
@@ -338,6 +339,18 @@ const getCancellationsByExecutiveName = async (executiveName) => {
     throw new Error(`Fetch Cancellation By Executive Error: ${err.message}`);
   }
 };
+const restoreCancellation = async (voucher) => {
+  await dynamoDB.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: voucher,
+      ConditionExpression: "attribute_not_exists(#id)",
+      ExpressionAttributeNames: {
+        "#id": "_id",
+      },
+    }),
+  );
+};
 
 /* ================= EXPORTS ================= */
 
@@ -354,6 +367,7 @@ module.exports = {
 
   deleteCancellationById,
   deleteLatestCancellationByInvoiceId,
+  restoreCancellation,
 
   // 🔥 NEW EXPORT
   getLatestCancellationsForAllInvoices,

@@ -158,7 +158,7 @@ const deletePaymentByCancellationId = async (cancellationId) => {
 
     if (payments.length > 1) {
       throw new Error(
-        `Data integrity error: Multiple payments found for cancellation ${cancellationId}`
+        `Data integrity error: Multiple payments found for cancellation ${cancellationId}`,
       );
     }
 
@@ -256,6 +256,19 @@ const getLast30DaysPaymentsSummary = async () => {
   }
 };
 
+const restorePayment = async (payment) => {
+  await dynamoDB.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: payment,
+      ConditionExpression: "attribute_not_exists(#id)",
+      ExpressionAttributeNames: {
+        "#id": "_id",
+      },
+    }),
+  );
+};
+
 /* ===============================
    EXPORTS
    =============================== */
@@ -265,6 +278,7 @@ module.exports = {
   // READ APIs
   getLast30DaysPaymentsSummary,
   getAllPayments,
+  restorePayment,
   getPaymentsByInvoiceId,
   getPaymentsByCancellationId,
   getPaymentsByCustomerPhone,

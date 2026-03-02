@@ -26,7 +26,34 @@ const getLatestInvoicesForPhone = async (req, res) => {
     });
   }
 };
+const getLatestInvoicesBySearch = async (req, res) => {
+  try {
+    const { q } = req.query; // ?q=98345 or ?q=Rakesh or ?q=ABCDE1234F
+
+    if (!q || String(q).trim() === "") {
+      return res.status(400).json({
+        success: false,
+        message: "Search query is required (phone, name or PAN)",
+      });
+    }
+
+    const invoices = await InvoiceRepo.smartSearchLatestActiveInvoices(q);
+
+    return res.status(200).json({
+      success: true,
+      count: invoices.length,
+      data: invoices,
+    });
+  } catch (error) {
+    console.error("Smart invoice search error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to search invoices",
+    });
+  }
+};
 
 module.exports = {
   getLatestInvoicesForPhone,
+  getLatestInvoicesBySearch,
 };
